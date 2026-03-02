@@ -23,6 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       repo_version: ${{ steps.repo-version.outputs.version }}
+      repo_tag: ${{ steps.repo-version.outputs.tag }}
       ralphex_version: ${{ steps.ralphex-version.outputs.version }}
     steps:
       - name: Resolve repo version
@@ -42,6 +43,7 @@ jobs:
             echo "::error::Failed to resolve repo version"
             exit 1
           fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
 
       - name: Resolve ralphex version
@@ -70,6 +72,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ needs.resolve-versions.outputs.repo_tag }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
@@ -114,24 +118,29 @@ jobs:
   update-upstream-version:
     needs: [resolve-versions, build]
     runs-on: ubuntu-latest
-    permissions:
-      actions: write
     steps:
       - name: Update stored upstream version
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.ACTIONS_VARS_TOKEN }}
           RALPHEX_VER: ${{ needs.resolve-versions.outputs.ralphex_version }}
           REPO: ${{ github.repository }}
         run: |
           UPSTREAM_TAG="v${RALPHEX_VER}"
-          gh api \
+          if ! PATCH_OUTPUT=$(gh api \
             --method PATCH \
             "repos/${REPO}/actions/variables/RALPHEX_UPSTREAM_VERSION" \
             --field name=RALPHEX_UPSTREAM_VERSION \
-            --field value="${UPSTREAM_TAG}" 2>/dev/null \
-          || gh api \
-            --method POST \
-            "repos/${REPO}/actions/variables" \
-            --field name=RALPHEX_UPSTREAM_VERSION \
-            --field value="${UPSTREAM_TAG}"
+            --field value="${UPSTREAM_TAG}" 2>&1); then
+            if echo "${PATCH_OUTPUT}" | grep -q "Not Found"; then
+              echo "Variable not found, creating it"
+              gh api \
+                --method POST \
+                "repos/${REPO}/actions/variables" \
+                --field name=RALPHEX_UPSTREAM_VERSION \
+                --field value="${UPSTREAM_TAG}"
+            else
+              echo "::error::Failed to update variable: ${PATCH_OUTPUT}"
+              exit 1
+            fi
+          fi
           echo "Updated stored upstream version to: ${UPSTREAM_TAG}"

@@ -5,6 +5,10 @@ on:
     - cron: "0 6 * * *"
   workflow_dispatch:
 
+concurrency:
+  group: check-upstream
+  cancel-in-progress: false
+
 permissions:
   contents: read
   actions: write
@@ -29,10 +33,14 @@ jobs:
       - name: Compare with stored version
         id: compare
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.ACTIONS_VARS_TOKEN }}
           UPSTREAM_TAG: ${{ steps.upstream.outputs.tag }}
           REPO: ${{ github.repository }}
         run: |
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "::error::ACTIONS_VARS_TOKEN secret is not configured"
+            exit 1
+          fi
           STORED=""
           if API_OUTPUT=$(gh api "repos/${REPO}/actions/variables/RALPHEX_UPSTREAM_VERSION" --jq '.value' 2>&1); then
             STORED="${API_OUTPUT}"
@@ -55,10 +63,14 @@ jobs:
         id: trigger
         if: steps.compare.outputs.changed == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.ACTIONS_VARS_TOKEN }}
           UPSTREAM_TAG: ${{ steps.upstream.outputs.tag }}
           REPO: ${{ github.repository }}
         run: |
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "::error::ACTIONS_VARS_TOKEN secret is not configured"
+            exit 1
+          fi
           gh workflow run build-publish.yml \
             --repo "${REPO}" \
             --field "ralphex_version=${UPSTREAM_TAG}"

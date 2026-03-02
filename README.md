@@ -46,6 +46,14 @@ Both triggers produce the same tag set, ensuring images stay current with upstre
 
 CI builds use the Dockerfile default versions for UV and ruff. To change these, update the default `ARG` values in the Dockerfile and create a new release. The upstream check workflow stores the last-seen ralphex version in a GitHub Actions repository variable (`RALPHEX_UPSTREAM_VERSION`), which is created automatically on the first run.
 
+Both workflows can be triggered manually from the GitHub Actions UI. The build-publish workflow accepts an optional `ralphex_version` input to override the upstream ralphex version.
+
+### Required Secrets
+
+| Secret | Purpose |
+|--------|---------|
+| `ACTIONS_VARS_TOKEN` | PAT with `repo` scope (or fine-grained `variables:write`). Used to update the `RALPHEX_UPSTREAM_VERSION` repository variable and to trigger the build-publish workflow from the upstream check. |
+
 ## Usage
 
 Pull a specific Python version:
