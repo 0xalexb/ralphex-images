@@ -1,7 +1,8 @@
 ARG UV_VERSION=0.10.6
+ARG RALPHEX_VERSION=latest
 
 FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv-source
-FROM ghcr.io/umputun/ralphex:latest
+FROM ghcr.io/umputun/ralphex:${RALPHEX_VERSION}
 
 ARG PYTHON_VERSION=3.13
 ARG RUFF_VERSION=0.15.3
