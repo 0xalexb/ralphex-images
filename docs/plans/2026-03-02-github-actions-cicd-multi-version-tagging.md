@@ -91,9 +91,9 @@ For repo release `v1.0.0`, ralphex version `v0.5.2`, Python versions 3.11/3.12/3
 **Files:**
 - Modify: `README.md`
 
-- [ ] Update Available Tags table to show the three-dimensional tag scheme
-- [ ] Add a "CI/CD" section explaining: auto-build on repo release, auto-rebuild on upstream ralphex release
-- [ ] Document the tag format and how to pick the right tag
+- [x] Update Available Tags table to show the three-dimensional tag scheme
+- [x] Add a "CI/CD" section explaining: auto-build on repo release, auto-rebuild on upstream ralphex release
+- [x] Document the tag format and how to pick the right tag
 
 ### Task 6: Verify
 

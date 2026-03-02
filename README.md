@@ -4,16 +4,25 @@ Python development image extending the [ralphex](https://github.com/umputun/ralp
 
 ## Available Tags
 
-| Tag      | Python Version | Notes          |
-|----------|---------------|----------------|
-| `3.13`   | 3.13          | Also tagged `latest` |
-| `3.12`   | 3.12          |                |
-| `3.11`   | 3.11          |                |
-| `latest` | 3.13          | Alias for `3.13` |
+Images are tagged across three dimensions: this repo's release version, the upstream ralphex version, and the Python version.
+
+| Tag Pattern                     | Example               | Description                                           |
+|---------------------------------|-----------------------|-------------------------------------------------------|
+| `<ver>-r<ralphex>-py<python>`   | `1.0.0-r0.5.2-py3.13`| Fully pinned: repo + ralphex + Python version         |
+| `r<ralphex>-py<python>`         | `r0.5.2-py3.13`      | Floating repo version: latest repo for this ralphex + Python |
+| `py<python>`                    | `py3.13`              | Floating: latest repo + latest ralphex for this Python |
+| `latest`                        | `latest`              | Latest everything (Python 3.13)                       |
+
+### How to pick a tag
+
+- Use a fully pinned tag (`1.0.0-r0.5.2-py3.13`) for reproducible builds where you need exact versions.
+- Use `r<ralphex>-py<python>` to track this repo's updates while staying on a specific ralphex + Python combination.
+- Use `py<python>` to always get the latest versions of everything for a given Python version.
+- Use `latest` to always get the newest image with Python 3.13.
 
 ## What's Included
 
-From the base image (`ghcr.io/umputun/ralphex:latest`):
+From the base image (`ghcr.io/umputun/ralphex`):
 - System Python 3, pip
 - Node.js, npm
 - make, gcc, musl-dev
@@ -25,6 +34,15 @@ Added by this image:
 - UV (default: 0.10.6) - fast Python package manager
 - ruff (default: 0.15.3) - Python linter and formatter
 - Python version matching the image tag, installed and managed via UV
+
+## CI/CD
+
+Docker images are built and published to GHCR automatically:
+
+- On repo release: when a new GitHub release is published for this repository, images are built for all Python versions and pushed with the full set of tags.
+- On upstream ralphex release: a daily check runs against the [umputun/ralphex](https://github.com/umputun/ralphex) repository. When a new ralphex version is detected, a rebuild is triggered automatically using the latest repo release and the new ralphex version.
+
+Both triggers produce the same tag set, ensuring images stay current with upstream changes without manual intervention.
 
 ## Usage
 
@@ -78,6 +96,18 @@ Override the ruff version:
 
 ```
 make build RUFF_VERSION=0.14.0
+```
+
+Build with a specific ralphex base version:
+
+```
+make build RALPHEX_VERSION=0.5.2
+```
+
+Build with versioned tags (produces `<ver>-r<ralphex>-py<python>` tags):
+
+```
+make build VERSION=1.0.0 RALPHEX_VERSION=0.5.2
 ```
 
 Override the image name:
