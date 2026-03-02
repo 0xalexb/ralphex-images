@@ -68,12 +68,12 @@ For repo release `v1.0.0`, ralphex version `v0.5.2`, Python versions 3.11/3.12/3
 **Files:**
 - Create: `.github/workflows/check-upstream.yml`
 
-- [ ] Define schedule trigger (e.g., daily cron `0 6 * * *`)
-- [ ] Also allow `workflow_dispatch` for manual triggering
-- [ ] Fetch latest release tag from `umputun/ralphex` via GitHub API
-- [ ] Compare against last known version (stored as a repository variable or file)
-- [ ] If new version detected, trigger the build-publish workflow via `workflow_dispatch` with the new ralphex version
-- [ ] Update the stored version to the new release
+- [x] Define schedule trigger (e.g., daily cron `0 6 * * *`)
+- [x] Also allow `workflow_dispatch` for manual triggering
+- [x] Fetch latest release tag from `umputun/ralphex` via GitHub API
+- [x] Compare against last known version (stored as a repository variable or file)
+- [x] If new version detected, trigger the build-publish workflow via `workflow_dispatch` with the new ralphex version
+- [x] Update the stored version to the new release
 
 ### Task 4: Update Makefile with version-aware tags
 

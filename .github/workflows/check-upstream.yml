@@ -1,0 +1,67 @@
+name: Check Upstream Ralphex Release
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch latest upstream release
+        id: upstream
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=$(gh api "repos/umputun/ralphex/releases/latest" --jq '.tag_name')
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Latest upstream ralphex release: ${TAG}"
+
+      - name: Compare with stored version
+        id: compare
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          UPSTREAM_TAG: ${{ steps.upstream.outputs.tag }}
+        run: |
+          STORED=$(gh api "repos/${{ github.repository }}/actions/variables/RALPHEX_UPSTREAM_VERSION" --jq '.value' 2>/dev/null || echo "")
+          echo "stored=${STORED}" >> "$GITHUB_OUTPUT"
+          echo "Stored version: ${STORED}"
+          echo "Upstream version: ${UPSTREAM_TAG}"
+          if [ "${UPSTREAM_TAG}" != "${STORED}" ] && [ -n "${UPSTREAM_TAG}" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Trigger build-publish workflow
+        if: steps.compare.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run build-publish.yml \
+            --repo "${{ github.repository }}" \
+            --field "ralphex_version=${{ steps.upstream.outputs.tag }}"
+          echo "Triggered build-publish with ralphex version: ${{ steps.upstream.outputs.tag }}"
+
+      - name: Update stored version
+        if: steps.compare.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Try to update existing variable, create if it doesn't exist
+          gh api \
+            --method PATCH \
+            "repos/${{ github.repository }}/actions/variables/RALPHEX_UPSTREAM_VERSION" \
+            --field name=RALPHEX_UPSTREAM_VERSION \
+            --field value="${{ steps.upstream.outputs.tag }}" 2>/dev/null \
+          || gh api \
+            --method POST \
+            "repos/${{ github.repository }}/actions/variables" \
+            --field name=RALPHEX_UPSTREAM_VERSION \
+            --field value="${{ steps.upstream.outputs.tag }}"
+          echo "Updated stored version to: ${{ steps.upstream.outputs.tag }}"
