@@ -19,6 +19,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG=$(gh api "repos/umputun/ralphex/releases/latest" --jq '.tag_name')
+          if [ -z "${TAG}" ]; then
+            echo "::error::Failed to fetch latest upstream ralphex release"
+            exit 1
+          fi
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "Latest upstream ralphex release: ${TAG}"
 
@@ -27,8 +31,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           UPSTREAM_TAG: ${{ steps.upstream.outputs.tag }}
+          REPO: ${{ github.repository }}
         run: |
-          STORED=$(gh api "repos/${{ github.repository }}/actions/variables/RALPHEX_UPSTREAM_VERSION" --jq '.value' 2>/dev/null || echo "")
+          STORED=""
+          if API_OUTPUT=$(gh api "repos/${REPO}/actions/variables/RALPHEX_UPSTREAM_VERSION" --jq '.value' 2>&1); then
+            STORED="${API_OUTPUT}"
+          elif echo "${API_OUTPUT}" | grep -q "Not Found"; then
+            echo "Variable RALPHEX_UPSTREAM_VERSION not found, treating as first run"
+          else
+            echo "::error::Failed to query stored version: ${API_OUTPUT}"
+            exit 1
+          fi
           echo "stored=${STORED}" >> "$GITHUB_OUTPUT"
           echo "Stored version: ${STORED}"
           echo "Upstream version: ${UPSTREAM_TAG}"
@@ -39,29 +52,15 @@ jobs:
           fi
 
       - name: Trigger build-publish workflow
+        id: trigger
         if: steps.compare.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          UPSTREAM_TAG: ${{ steps.upstream.outputs.tag }}
+          REPO: ${{ github.repository }}
         run: |
           gh workflow run build-publish.yml \
-            --repo "${{ github.repository }}" \
-            --field "ralphex_version=${{ steps.upstream.outputs.tag }}"
-          echo "Triggered build-publish with ralphex version: ${{ steps.upstream.outputs.tag }}"
+            --repo "${REPO}" \
+            --field "ralphex_version=${UPSTREAM_TAG}"
+          echo "Triggered build-publish with ralphex version: ${UPSTREAM_TAG}"
 
-      - name: Update stored version
-        if: steps.compare.outputs.changed == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Try to update existing variable, create if it doesn't exist
-          gh api \
-            --method PATCH \
-            "repos/${{ github.repository }}/actions/variables/RALPHEX_UPSTREAM_VERSION" \
-            --field name=RALPHEX_UPSTREAM_VERSION \
-            --field value="${{ steps.upstream.outputs.tag }}" 2>/dev/null \
-          || gh api \
-            --method POST \
-            "repos/${{ github.repository }}/actions/variables" \
-            --field name=RALPHEX_UPSTREAM_VERSION \
-            --field value="${{ steps.upstream.outputs.tag }}"
-          echo "Updated stored version to: ${{ steps.upstream.outputs.tag }}"

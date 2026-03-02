@@ -44,24 +44,26 @@ Docker images are built and published to GHCR automatically:
 
 Both triggers produce the same tag set, ensuring images stay current with upstream changes without manual intervention.
 
+CI builds use the Dockerfile default versions for UV and ruff. To change these, update the default `ARG` values in the Dockerfile and create a new release. The upstream check workflow stores the last-seen ralphex version in a GitHub Actions repository variable (`RALPHEX_UPSTREAM_VERSION`), which is created automatically on the first run.
+
 ## Usage
 
 Pull a specific Python version:
 
 ```
-docker pull ghcr.io/0xalexb/ralphex-python:3.13
+docker pull ghcr.io/0xalexb/ralphex-python:py3.13
 ```
 
 Run interactively:
 
 ```
-docker run --rm -it ghcr.io/0xalexb/ralphex-python:3.13 bash
+docker run --rm -it ghcr.io/0xalexb/ralphex-python:py3.13 bash
 ```
 
 Use as a base for your own image:
 
 ```dockerfile
-FROM ghcr.io/0xalexb/ralphex-python:3.13
+FROM ghcr.io/0xalexb/ralphex-python:py3.13
 COPY . /workspace
 RUN uv sync
 ```

@@ -97,8 +97,8 @@ For repo release `v1.0.0`, ralphex version `v0.5.2`, Python versions 3.11/3.12/3
 
 ### Task 6: Verify
 
-- [ ] Validate workflow YAML syntax (manual review)
-- [ ] Confirm tag generation logic handles `v` prefix stripping correctly for both repo and ralphex versions
-- [ ] Review that GHCR permissions and login are correctly configured
-- [ ] Review upstream check workflow logic for correctness
-- [ ] Move this plan to `docs/plans/completed/`
+- [x] Validate workflow YAML syntax (manual review)
+- [x] Confirm tag generation logic handles `v` prefix stripping correctly for both repo and ralphex versions
+- [x] Review that GHCR permissions and login are correctly configured
+- [x] Review upstream check workflow logic for correctness
+- [x] Move this plan to `docs/plans/completed/`
