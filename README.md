@@ -1,26 +1,27 @@
-# ralphex-python
+# ralphex-images
 
-Python development image extending the [ralphex](https://github.com/umputun/ralphex) base image with [UV](https://docs.astral.sh/uv/) (fast Python package manager) and [ruff](https://docs.astral.sh/ruff/) (linter/formatter). Each image variant includes a specific Python version installed and managed via UV.
+Docker images extending the [ralphex](https://github.com/umputun/ralphex) family of Alpine-based dev images. This repository builds and publishes two images:
 
-## Available Tags
+| Image | Registry | Base | Adds |
+|-------|----------|------|------|
+| **ralphex-python** | `ghcr.io/0xalexb/ralphex-python` | [umputun/ralphex](https://github.com/umputun/ralphex) | UV, ruff, Python 3.11/3.12/3.13 |
+| **ralphex-go** | `ghcr.io/0xalexb/ralphex-go` | [umputun/ralphex-go](https://github.com/umputun/ralphex-go) | jq |
 
-Images are tagged across three dimensions: this repo's release version, the upstream ralphex version, and the Python version.
+## Python Image
 
-| Tag Pattern                     | Example               | Description                                           |
-|---------------------------------|-----------------------|-------------------------------------------------------|
-| `<ver>-r<ralphex>-py<python>`   | `1.0.0-r0.5.2-py3.13`| Fully pinned: repo + ralphex + Python version         |
-| `r<ralphex>-py<python>`         | `r0.5.2-py3.13`      | Floating repo version: latest repo for this ralphex + Python |
-| `py<python>`                    | `py3.13`              | Floating: latest repo + latest ralphex for this Python |
-| `latest`                        | `latest`              | Latest everything (Python 3.13)                       |
+Extends ralphex with [UV](https://docs.astral.sh/uv/) (fast Python package manager) and [ruff](https://docs.astral.sh/ruff/) (linter/formatter). Each variant includes a specific Python version installed and managed via UV.
 
-### How to pick a tag
+### Tags
 
-- Use a fully pinned tag (`1.0.0-r0.5.2-py3.13`) for reproducible builds where you need exact versions.
-- Use `r<ralphex>-py<python>` to track this repo's updates while staying on a specific ralphex + Python combination.
-- Use `py<python>` to always get the latest versions of everything for a given Python version.
-- Use `latest` to always get the newest image with Python 3.13.
+| Tag Pattern | Example | Description |
+|---|---|---|
+| `<ver>-r<ralphex>-py<python>` | `1.0.0-r0.5.2-py3.13` | Fully pinned: repo + ralphex + Python |
+| `r<ralphex>-py<python>` | `r0.5.2-py3.13` | Floating repo version |
+| `py<python>` | `py3.13` | Floating: latest repo + latest ralphex |
 
-## What's Included
+The highest floating tag is `py3.13`. There is no `latest` tag on the Python image.
+
+### What's Included
 
 From the base image (`ghcr.io/umputun/ralphex`):
 - System Python 3, pip
@@ -35,40 +36,14 @@ Added by this image:
 - ruff (default: 0.15.3) - Python linter and formatter
 - Python version matching the image tag, installed and managed via UV
 
-## CI/CD
-
-Docker images are built and published to GHCR automatically:
-
-- On repo release: when a new GitHub release is published for this repository, images are built for all Python versions and pushed with the full set of tags.
-- On upstream ralphex release: a daily check runs against the [umputun/ralphex](https://github.com/umputun/ralphex) repository. When a new ralphex version is detected, a rebuild is triggered automatically using the latest repo release and the new ralphex version.
-
-Both triggers produce the same tag set, ensuring images stay current with upstream changes without manual intervention.
-
-CI builds use the Dockerfile default versions for UV and ruff. To change these, update the default `ARG` values in the Dockerfile and create a new release. The upstream check workflow stores the last-seen ralphex version in a GitHub Actions repository variable (`RALPHEX_UPSTREAM_VERSION`), which is created automatically on the first run.
-
-Both workflows can be triggered manually from the GitHub Actions UI. The build-publish workflow accepts an optional `ralphex_version` input to override the upstream ralphex version.
-
-### Required Secrets
-
-| Secret | Purpose |
-|--------|---------|
-| `ACTIONS_VARS_TOKEN` | PAT with `repo` scope (or fine-grained `variables:write`). Used to update the `RALPHEX_UPSTREAM_VERSION` repository variable and to trigger the build-publish workflow from the upstream check. |
-
-## Usage
-
-Pull a specific Python version:
+### Usage
 
 ```
 docker pull ghcr.io/0xalexb/ralphex-python:py3.13
-```
-
-Run interactively:
-
-```
 docker run --rm -it ghcr.io/0xalexb/ralphex-python:py3.13 bash
 ```
 
-Use as a base for your own image:
+As a base image:
 
 ```dockerfile
 FROM ghcr.io/0xalexb/ralphex-python:py3.13
@@ -76,52 +51,86 @@ COPY . /workspace
 RUN uv sync
 ```
 
+## Go Image
+
+Extends ralphex-go with [jq](https://jqlang.github.io/jq/) for JSON processing.
+
+### Tags
+
+| Tag Pattern | Example | Description |
+|---|---|---|
+| `<ver>-r<ralphex_go>` | `1.0.0-r0.1.0` | Fully pinned: repo + ralphex-go |
+| `r<ralphex_go>` | `r0.1.0` | Floating repo version |
+| `latest` | `latest` | Latest everything |
+
+### Usage
+
+```
+docker pull ghcr.io/0xalexb/ralphex-go:latest
+docker run --rm -it ghcr.io/0xalexb/ralphex-go:latest bash
+```
+
+As a base image:
+
+```dockerfile
+FROM ghcr.io/0xalexb/ralphex-go:latest
+COPY . /workspace
+RUN go build ./...
+```
+
+## CI/CD
+
+Docker images are built and published to GHCR automatically:
+
+- **On repo release**: when a new GitHub release is published, both images are built and pushed with the full set of tags.
+- **On upstream release**: a daily check (6 AM UTC) monitors both [umputun/ralphex](https://github.com/umputun/ralphex) and [umputun/ralphex-go](https://github.com/umputun/ralphex-go). When either upstream publishes a new version, a rebuild is triggered for both images.
+
+Both workflows can be triggered manually from the GitHub Actions UI. The build-publish workflow accepts optional `ralphex_version` and `ralphex_go_version` inputs.
+
+### Required Secrets
+
+| Secret | Purpose |
+|--------|---------|
+| `ACTIONS_VARS_TOKEN` | PAT with `repo` scope (or fine-grained `variables:write`). Used to update upstream version repo variables and trigger build-publish from the upstream check. |
+
 ## Build
 
-Build all variants:
+Build all images (Python + Go):
 
 ```
 make build
 ```
 
-Build a single variant:
+Build only Python variants:
+
+```
+make build-python
+```
+
+Build a single Python variant:
 
 ```
 make build-one PYTHON_VERSION=3.13
 ```
 
-Push all variants:
+Build only the Go image:
+
+```
+make build-go
+```
+
+Push all images:
 
 ```
 make push
 ```
 
-Override the UV version:
+Override defaults:
 
 ```
-make build UV_VERSION=0.9.0
-```
-
-Override the ruff version:
-
-```
-make build RUFF_VERSION=0.14.0
-```
-
-Build with a specific ralphex base version:
-
-```
-make build RALPHEX_VERSION=0.5.2
-```
-
-Build with versioned tags (produces `<ver>-r<ralphex>-py<python>` tags):
-
-```
-make build VERSION=1.0.0 RALPHEX_VERSION=0.5.2
-```
-
-Override the image name:
-
-```
-make build DOCKER_IMAGE=my-registry/my-image
+make build-python UV_VERSION=0.9.0
+make build-python RUFF_VERSION=0.14.0
+make build-python RALPHEX_VERSION=0.5.2
+make build-go RALPHEX_GO_VERSION=0.1.0
+make build VERSION=1.0.0 RALPHEX_VERSION=0.5.2 RALPHEX_GO_VERSION=0.1.0
 ```

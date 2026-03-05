@@ -17,8 +17,8 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch latest upstream release
-        id: upstream
+      - name: Fetch latest upstream ralphex release
+        id: upstream-python
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -30,11 +30,24 @@ jobs:
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "Latest upstream ralphex release: ${TAG}"
 
-      - name: Compare with stored version
-        id: compare
+      - name: Fetch latest upstream ralphex-go release
+        id: upstream-go
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=$(gh api "repos/umputun/ralphex-go/releases/latest" --jq '.tag_name')
+          if [ -z "${TAG}" ]; then
+            echo "::error::Failed to fetch latest upstream ralphex-go release"
+            exit 1
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Latest upstream ralphex-go release: ${TAG}"
+
+      - name: Compare Python upstream with stored version
+        id: compare-python
         env:
           GH_TOKEN: ${{ secrets.ACTIONS_VARS_TOKEN }}
-          UPSTREAM_TAG: ${{ steps.upstream.outputs.tag }}
+          UPSTREAM_TAG: ${{ steps.upstream-python.outputs.tag }}
           REPO: ${{ github.repository }}
         run: |
           if [ -z "${GH_TOKEN}" ]; then
@@ -59,20 +72,62 @@ jobs:
             echo "changed=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Trigger build-publish workflow
-        id: trigger
-        if: steps.compare.outputs.changed == 'true'
+      - name: Compare Go upstream with stored version
+        id: compare-go
         env:
           GH_TOKEN: ${{ secrets.ACTIONS_VARS_TOKEN }}
-          UPSTREAM_TAG: ${{ steps.upstream.outputs.tag }}
+          UPSTREAM_TAG: ${{ steps.upstream-go.outputs.tag }}
           REPO: ${{ github.repository }}
         run: |
           if [ -z "${GH_TOKEN}" ]; then
             echo "::error::ACTIONS_VARS_TOKEN secret is not configured"
             exit 1
           fi
+          STORED=""
+          if API_OUTPUT=$(gh api "repos/${REPO}/actions/variables/RALPHEX_GO_UPSTREAM_VERSION" --jq '.value' 2>&1); then
+            STORED="${API_OUTPUT}"
+          elif echo "${API_OUTPUT}" | grep -q "Not Found"; then
+            echo "Variable RALPHEX_GO_UPSTREAM_VERSION not found, treating as first run"
+          else
+            echo "::error::Failed to query stored version: ${API_OUTPUT}"
+            exit 1
+          fi
+          echo "stored=${STORED}" >> "$GITHUB_OUTPUT"
+          echo "Stored version: ${STORED}"
+          echo "Upstream version: ${UPSTREAM_TAG}"
+          if [ "${UPSTREAM_TAG}" != "${STORED}" ] && [ -n "${UPSTREAM_TAG}" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Trigger build-publish workflow
+        if: steps.compare-python.outputs.changed == 'true' || steps.compare-go.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.ACTIONS_VARS_TOKEN }}
+          PYTHON_UPSTREAM_TAG: ${{ steps.upstream-python.outputs.tag }}
+          PYTHON_STORED_TAG: ${{ steps.compare-python.outputs.stored }}
+          PYTHON_CHANGED: ${{ steps.compare-python.outputs.changed }}
+          GO_UPSTREAM_TAG: ${{ steps.upstream-go.outputs.tag }}
+          GO_STORED_TAG: ${{ steps.compare-go.outputs.stored }}
+          GO_CHANGED: ${{ steps.compare-go.outputs.changed }}
+          REPO: ${{ github.repository }}
+        run: |
+          # Use new version if changed, stored version if unchanged
+          if [ "${PYTHON_CHANGED}" = "true" ]; then
+            RALPHEX_VER="${PYTHON_UPSTREAM_TAG}"
+          else
+            RALPHEX_VER="${PYTHON_STORED_TAG}"
+          fi
+
+          if [ "${GO_CHANGED}" = "true" ]; then
+            RALPHEX_GO_VER="${GO_UPSTREAM_TAG}"
+          else
+            RALPHEX_GO_VER="${GO_STORED_TAG}"
+          fi
+
           gh workflow run build-publish.yml \
             --repo "${REPO}" \
-            --field "ralphex_version=${UPSTREAM_TAG}"
-          echo "Triggered build-publish with ralphex version: ${UPSTREAM_TAG}"
-
+            --field "ralphex_version=${RALPHEX_VER}" \
+            --field "ralphex_go_version=${RALPHEX_GO_VER}"
+          echo "Triggered build-publish with ralphex version: ${RALPHEX_VER}, ralphex-go version: ${RALPHEX_GO_VER}"

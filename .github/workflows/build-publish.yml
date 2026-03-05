@@ -9,6 +9,10 @@ on:
         description: "Ralphex version (e.g. v0.5.2). If omitted, fetches latest from umputun/ralphex."
         required: false
         type: string
+      ralphex_go_version:
+        description: "Ralphex Go version (e.g. v0.1.0). If omitted, fetches latest from umputun/ralphex-go."
+        required: false
+        type: string
 
 concurrency:
   group: build-publish
@@ -25,6 +29,7 @@ jobs:
       repo_version: ${{ steps.repo-version.outputs.version }}
       repo_tag: ${{ steps.repo-version.outputs.tag }}
       ralphex_version: ${{ steps.ralphex-version.outputs.version }}
+      ralphex_go_version: ${{ steps.ralphex-go-version.outputs.version }}
     steps:
       - name: Resolve repo version
         id: repo-version
@@ -63,7 +68,24 @@ jobs:
           fi
           echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
 
-  build:
+      - name: Resolve ralphex-go version
+        id: ralphex-go-version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_RALPHEX_GO_VERSION: ${{ inputs.ralphex_go_version }}
+        run: |
+          if [ -n "${INPUT_RALPHEX_GO_VERSION}" ]; then
+            TAG="${INPUT_RALPHEX_GO_VERSION}"
+          else
+            TAG=$(gh api "repos/umputun/ralphex-go/releases/latest" --jq '.tag_name')
+          fi
+          if [ -z "${TAG}" ]; then
+            echo "::error::Failed to resolve ralphex-go version"
+            exit 1
+          fi
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+  build-python:
     needs: resolve-versions
     runs-on: ubuntu-latest
     strategy:
@@ -91,32 +113,69 @@ jobs:
           REPO_VER: ${{ needs.resolve-versions.outputs.repo_version }}
           RALPHEX_VER: ${{ needs.resolve-versions.outputs.ralphex_version }}
           PY_VER: ${{ matrix.python_version }}
-          REPO: ${{ github.repository }}
         run: |
-          IMAGE=$(echo "ghcr.io/${REPO}" | tr '[:upper:]' '[:lower:]')
+          IMAGE="ghcr.io/0xalexb/ralphex-python"
 
           TAGS="${IMAGE}:${REPO_VER}-r${RALPHEX_VER}-py${PY_VER}"
           TAGS="${TAGS},${IMAGE}:r${RALPHEX_VER}-py${PY_VER}"
           TAGS="${TAGS},${IMAGE}:py${PY_VER}"
-
-          if [ "${PY_VER}" = "3.13" ]; then
-            TAGS="${TAGS},${IMAGE}:latest"
-          fi
 
           echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
-          context: .
+          context: docker-python/
           push: true
           tags: ${{ steps.tags.outputs.tags }}
           build-args: |
             PYTHON_VERSION=${{ matrix.python_version }}
             RALPHEX_VERSION=${{ needs.resolve-versions.outputs.ralphex_version }}
 
-  update-upstream-version:
-    needs: [resolve-versions, build]
+  build-go:
+    needs: resolve-versions
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ needs.resolve-versions.outputs.repo_tag }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate tags
+        id: tags
+        env:
+          REPO_VER: ${{ needs.resolve-versions.outputs.repo_version }}
+          RALPHEX_GO_VER: ${{ needs.resolve-versions.outputs.ralphex_go_version }}
+        run: |
+          IMAGE="ghcr.io/0xalexb/ralphex-go"
+
+          TAGS="${IMAGE}:${REPO_VER}-r${RALPHEX_GO_VER}"
+          TAGS="${TAGS},${IMAGE}:r${RALPHEX_GO_VER}"
+          TAGS="${TAGS},${IMAGE}:latest"
+
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: docker-go/
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          build-args: |
+            RALPHEX_GO_VERSION=${{ needs.resolve-versions.outputs.ralphex_go_version }}
+
+  update-upstream-versions:
+    needs: [resolve-versions, build-python, build-go]
     runs-on: ubuntu-latest
     steps:
       - name: Update stored upstream version
@@ -144,3 +203,29 @@ jobs:
             fi
           fi
           echo "Updated stored upstream version to: ${UPSTREAM_TAG}"
+
+      - name: Update stored upstream Go version
+        env:
+          GH_TOKEN: ${{ secrets.ACTIONS_VARS_TOKEN }}
+          RALPHEX_GO_VER: ${{ needs.resolve-versions.outputs.ralphex_go_version }}
+          REPO: ${{ github.repository }}
+        run: |
+          UPSTREAM_TAG="v${RALPHEX_GO_VER}"
+          if ! PATCH_OUTPUT=$(gh api \
+            --method PATCH \
+            "repos/${REPO}/actions/variables/RALPHEX_GO_UPSTREAM_VERSION" \
+            --field name=RALPHEX_GO_UPSTREAM_VERSION \
+            --field value="${UPSTREAM_TAG}" 2>&1); then
+            if echo "${PATCH_OUTPUT}" | grep -q "Not Found"; then
+              echo "Variable not found, creating it"
+              gh api \
+                --method POST \
+                "repos/${REPO}/actions/variables" \
+                --field name=RALPHEX_GO_UPSTREAM_VERSION \
+                --field value="${UPSTREAM_TAG}"
+            else
+              echo "::error::Failed to update variable: ${PATCH_OUTPUT}"
+              exit 1
+            fi
+          fi
+          echo "Updated stored upstream Go version to: ${UPSTREAM_TAG}"
