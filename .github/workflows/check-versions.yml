@@ -1,0 +1,98 @@
+name: Check Tool Versions
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: check-versions
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check all tool versions
+        id: versions
+        env:
+          GH_TOKEN: ${{ secrets.ACTIONS_VARS_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          CHANGED=false
+
+          # Define tools: name|github_repo|variable_name
+          TOOLS=(
+            "ralphex|umputun/ralphex|RALPHEX_UPSTREAM_VERSION"
+            "claude-code|anthropics/claude-code|CLAUDE_CODE_UPSTREAM_VERSION"
+            "codex|openai/codex|CODEX_UPSTREAM_VERSION"
+            "uv|astral-sh/uv|UV_UPSTREAM_VERSION"
+          )
+
+          for TOOL_DEF in "${TOOLS[@]}"; do
+            IFS='|' read -r NAME UPSTREAM_REPO VAR_NAME <<< "${TOOL_DEF}"
+
+            # Fetch latest release tag
+            LATEST=$(gh api "repos/${UPSTREAM_REPO}/releases/latest" --jq '.tag_name' 2>/dev/null || true)
+            if [ -z "${LATEST}" ]; then
+              echo "::warning::Failed to fetch latest release for ${NAME} from ${UPSTREAM_REPO}"
+              continue
+            fi
+
+            # Fetch stored version
+            STORED=""
+            if API_OUTPUT=$(gh api "repos/${REPO}/actions/variables/${VAR_NAME}" --jq '.value' 2>&1); then
+              STORED="${API_OUTPUT}"
+            elif echo "${API_OUTPUT}" | grep -q "Not Found"; then
+              echo "Variable ${VAR_NAME} not found, treating as first run"
+            else
+              echo "::warning::Failed to query stored version for ${NAME}: ${API_OUTPUT}"
+              continue
+            fi
+
+            echo "${NAME}: latest=${LATEST} stored=${STORED}"
+
+            if [ "${LATEST}" != "${STORED}" ] && [ -n "${LATEST}" ]; then
+              CHANGED=true
+              echo "${NAME} version changed: ${STORED} -> ${LATEST}"
+            fi
+
+            # Output each version for use in trigger step
+            # Use variable name as output key (lowercase)
+            echo "${NAME//-/_}_version=${LATEST}" >> "$GITHUB_OUTPUT"
+          done
+
+          echo "changed=${CHANGED}" >> "$GITHUB_OUTPUT"
+
+      - name: Trigger build-publish workflow
+        if: steps.versions.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.ACTIONS_VARS_TOKEN }}
+          REPO: ${{ github.repository }}
+          RALPHEX_VER: ${{ steps.versions.outputs.ralphex_version }}
+          CLAUDE_CODE_VER: ${{ steps.versions.outputs.claude_code_version }}
+          CODEX_VER: ${{ steps.versions.outputs.codex_version }}
+          UV_VER: ${{ steps.versions.outputs.uv_version }}
+        run: |
+          ARGS=""
+          if [ -n "${RALPHEX_VER}" ]; then
+            ARGS="${ARGS} --field ralphex_version=${RALPHEX_VER}"
+          fi
+          if [ -n "${CLAUDE_CODE_VER}" ]; then
+            ARGS="${ARGS} --field claude_code_version=${CLAUDE_CODE_VER}"
+          fi
+          if [ -n "${CODEX_VER}" ]; then
+            ARGS="${ARGS} --field codex_version=${CODEX_VER}"
+          fi
+          if [ -n "${UV_VER}" ]; then
+            ARGS="${ARGS} --field uv_version=${UV_VER}"
+          fi
+
+          gh workflow run build-publish.yml \
+            --repo "${REPO}" \
+            ${ARGS}
+          echo "Triggered build-publish with versions: ralphex=${RALPHEX_VER} claude-code=${CLAUDE_CODE_VER} codex=${CODEX_VER} uv=${UV_VER}"

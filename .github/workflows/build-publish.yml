@@ -9,6 +9,18 @@ on:
         description: "Ralphex version (e.g. v0.5.2). If omitted, fetches latest from umputun/ralphex."
         required: false
         type: string
+      claude_code_version:
+        description: "Claude Code version (e.g. v1.0.0). If omitted, fetches latest from anthropics/claude-code."
+        required: false
+        type: string
+      codex_version:
+        description: "Codex version (e.g. v0.1.0). If omitted, fetches latest from openai/codex."
+        required: false
+        type: string
+      uv_version:
+        description: "UV version (e.g. v0.10.6). If omitted, fetches latest from astral-sh/uv."
+        required: false
+        type: string
 
 concurrency:
   group: build-publish
@@ -25,6 +37,9 @@ jobs:
       repo_version: ${{ steps.repo-version.outputs.version }}
       repo_tag: ${{ steps.repo-version.outputs.tag }}
       ralphex_version: ${{ steps.ralphex-version.outputs.version }}
+      claude_code_version: ${{ steps.claude-code-version.outputs.version }}
+      codex_version: ${{ steps.codex-version.outputs.version }}
+      uv_version: ${{ steps.uv-version.outputs.version }}
     steps:
       - name: Resolve repo version
         id: repo-version
@@ -59,6 +74,57 @@ jobs:
           fi
           if [ -z "${TAG}" ]; then
             echo "::error::Failed to resolve ralphex version"
+            exit 1
+          fi
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve Claude Code version
+        id: claude-code-version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_CLAUDE_CODE_VERSION: ${{ inputs.claude_code_version }}
+        run: |
+          if [ -n "${INPUT_CLAUDE_CODE_VERSION}" ]; then
+            TAG="${INPUT_CLAUDE_CODE_VERSION}"
+          else
+            TAG=$(gh api "repos/anthropics/claude-code/releases/latest" --jq '.tag_name')
+          fi
+          if [ -z "${TAG}" ]; then
+            echo "::error::Failed to resolve Claude Code version"
+            exit 1
+          fi
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve Codex version
+        id: codex-version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_CODEX_VERSION: ${{ inputs.codex_version }}
+        run: |
+          if [ -n "${INPUT_CODEX_VERSION}" ]; then
+            TAG="${INPUT_CODEX_VERSION}"
+          else
+            TAG=$(gh api "repos/openai/codex/releases/latest" --jq '.tag_name')
+          fi
+          if [ -z "${TAG}" ]; then
+            echo "::error::Failed to resolve Codex version"
+            exit 1
+          fi
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve UV version
+        id: uv-version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_UV_VERSION: ${{ inputs.uv_version }}
+        run: |
+          if [ -n "${INPUT_UV_VERSION}" ]; then
+            TAG="${INPUT_UV_VERSION}"
+          else
+            TAG=$(gh api "repos/astral-sh/uv/releases/latest" --jq '.tag_name')
+          fi
+          if [ -z "${TAG}" ]; then
+            echo "::error::Failed to resolve UV version"
             exit 1
           fi
           echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
@@ -109,6 +175,9 @@ jobs:
           build-args: |
             PYTHON_VERSION=${{ matrix.python_version }}
             RALPHEX_VERSION=${{ needs.resolve-versions.outputs.ralphex_version }}
+            UV_VERSION=${{ needs.resolve-versions.outputs.uv_version }}
+            CLAUDE_CODE_VERSION=${{ needs.resolve-versions.outputs.claude_code_version }}
+            CODEX_VERSION=${{ needs.resolve-versions.outputs.codex_version }}
 
   build-go:
     needs: resolve-versions
@@ -151,33 +220,49 @@ jobs:
           tags: ${{ steps.tags.outputs.tags }}
           build-args: |
             RALPHEX_GO_VERSION=${{ needs.resolve-versions.outputs.ralphex_version }}
+            CLAUDE_CODE_VERSION=${{ needs.resolve-versions.outputs.claude_code_version }}
+            CODEX_VERSION=${{ needs.resolve-versions.outputs.codex_version }}
 
-  update-upstream-version:
+  update-tracked-versions:
     needs: [resolve-versions, build-python, build-go]
     runs-on: ubuntu-latest
     steps:
-      - name: Update stored upstream version
+      - name: Update stored versions
         env:
           GH_TOKEN: ${{ secrets.ACTIONS_VARS_TOKEN }}
-          RALPHEX_VER: ${{ needs.resolve-versions.outputs.ralphex_version }}
           REPO: ${{ github.repository }}
+          RALPHEX_VER: ${{ needs.resolve-versions.outputs.ralphex_version }}
+          CLAUDE_CODE_VER: ${{ needs.resolve-versions.outputs.claude_code_version }}
+          CODEX_VER: ${{ needs.resolve-versions.outputs.codex_version }}
+          UV_VER: ${{ needs.resolve-versions.outputs.uv_version }}
         run: |
-          UPSTREAM_TAG="v${RALPHEX_VER}"
-          if ! PATCH_OUTPUT=$(gh api \
-            --method PATCH \
-            "repos/${REPO}/actions/variables/RALPHEX_UPSTREAM_VERSION" \
-            --field name=RALPHEX_UPSTREAM_VERSION \
-            --field value="${UPSTREAM_TAG}" 2>&1); then
-            if echo "${PATCH_OUTPUT}" | grep -q "Not Found"; then
-              echo "Variable not found, creating it"
-              gh api \
-                --method POST \
-                "repos/${REPO}/actions/variables" \
-                --field name=RALPHEX_UPSTREAM_VERSION \
-                --field value="${UPSTREAM_TAG}"
-            else
-              echo "::error::Failed to update variable: ${PATCH_OUTPUT}"
-              exit 1
+          # Define variable updates: var_name|value
+          UPDATES=(
+            "RALPHEX_UPSTREAM_VERSION|v${RALPHEX_VER}"
+            "CLAUDE_CODE_UPSTREAM_VERSION|v${CLAUDE_CODE_VER}"
+            "CODEX_UPSTREAM_VERSION|v${CODEX_VER}"
+            "UV_UPSTREAM_VERSION|v${UV_VER}"
+          )
+
+          for UPDATE in "${UPDATES[@]}"; do
+            IFS='|' read -r VAR_NAME VAR_VALUE <<< "${UPDATE}"
+
+            if ! PATCH_OUTPUT=$(gh api \
+              --method PATCH \
+              "repos/${REPO}/actions/variables/${VAR_NAME}" \
+              --field name="${VAR_NAME}" \
+              --field value="${VAR_VALUE}" 2>&1); then
+              if echo "${PATCH_OUTPUT}" | grep -q "Not Found"; then
+                echo "Variable ${VAR_NAME} not found, creating it"
+                gh api \
+                  --method POST \
+                  "repos/${REPO}/actions/variables" \
+                  --field name="${VAR_NAME}" \
+                  --field value="${VAR_VALUE}"
+              else
+                echo "::error::Failed to update variable ${VAR_NAME}: ${PATCH_OUTPUT}"
+                exit 1
+              fi
             fi
-          fi
-          echo "Updated stored upstream version to: ${UPSTREAM_TAG}"
+            echo "Updated ${VAR_NAME} to: ${VAR_VALUE}"
+          done
