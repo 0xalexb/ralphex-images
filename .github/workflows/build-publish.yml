@@ -104,14 +104,7 @@ jobs:
           if [ -n "${INPUT_CODEX_VERSION}" ]; then
             TAG="${INPUT_CODEX_VERSION}"
           else
-            # Codex repo has non-standard tags (e.g. rust-v0.1.0); filter to clean semver only
-            TAG=$(gh api "repos/openai/codex/releases" --jq '
-              [.[] | select(
-                .prerelease == false and
-                .draft == false and
-                (.tag_name | test("^v?[0-9]+\\.[0-9]+\\.[0-9]+$"))
-              )] | first | .tag_name
-            ')
+            TAG=$(npm view @openai/codex version 2>/dev/null || true)
           fi
           if [ -z "${TAG}" ]; then
             echo "::error::Failed to resolve Codex version"
