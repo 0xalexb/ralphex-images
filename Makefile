@@ -3,7 +3,6 @@ GO_IMAGE ?= ghcr.io/0xalexb/ralphex-go
 UV_VERSION ?= 0.10.6
 RUFF_VERSION ?= 0.15.3
 RALPHEX_VERSION ?= latest
-RALPHEX_GO_VERSION ?= latest
 PYTHON_VERSIONS := 3.11 3.12 3.13
 
 .PHONY: build build-python build-one build-go push push-python push-go
@@ -30,10 +29,10 @@ build-one:
 
 build-go:
 	@echo "Building $(GO_IMAGE):latest"
-	docker build --build-arg RALPHEX_GO_VERSION=$(RALPHEX_GO_VERSION) -t $(GO_IMAGE):latest docker-go/ || exit 1
-	docker tag $(GO_IMAGE):latest $(GO_IMAGE):r$(RALPHEX_GO_VERSION) || exit 1
+	docker build --build-arg RALPHEX_GO_VERSION=$(RALPHEX_VERSION) -t $(GO_IMAGE):latest docker-go/ || exit 1
+	docker tag $(GO_IMAGE):latest $(GO_IMAGE):r$(RALPHEX_VERSION) || exit 1
 	@if [ -n "$(VERSION)" ]; then \
-		docker tag $(GO_IMAGE):latest $(GO_IMAGE):$(VERSION)-r$(RALPHEX_GO_VERSION) || exit 1; \
+		docker tag $(GO_IMAGE):latest $(GO_IMAGE):$(VERSION)-r$(RALPHEX_VERSION) || exit 1; \
 	fi
 
 push: push-python push-go
@@ -53,9 +52,9 @@ push-python:
 push-go:
 	@echo "Pushing $(GO_IMAGE):latest"
 	docker push $(GO_IMAGE):latest || exit 1
-	@echo "Pushing $(GO_IMAGE):r$(RALPHEX_GO_VERSION)"
-	docker push $(GO_IMAGE):r$(RALPHEX_GO_VERSION) || exit 1
+	@echo "Pushing $(GO_IMAGE):r$(RALPHEX_VERSION)"
+	docker push $(GO_IMAGE):r$(RALPHEX_VERSION) || exit 1
 	@if [ -n "$(VERSION)" ]; then \
-		echo "Pushing $(GO_IMAGE):$(VERSION)-r$(RALPHEX_GO_VERSION)"; \
-		docker push $(GO_IMAGE):$(VERSION)-r$(RALPHEX_GO_VERSION) || exit 1; \
+		echo "Pushing $(GO_IMAGE):$(VERSION)-r$(RALPHEX_VERSION)"; \
+		docker push $(GO_IMAGE):$(VERSION)-r$(RALPHEX_VERSION) || exit 1; \
 	fi
