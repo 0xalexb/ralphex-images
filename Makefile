@@ -6,6 +6,7 @@ RALPHEX_VERSION ?= latest
 CLAUDE_CODE_VERSION ?= latest
 CODEX_VERSION ?= latest
 PYTHON_VERSIONS := 3.11 3.12 3.13
+LATEST_PYTHON := 3.13
 
 PLATFORMS ?= linux/amd64,linux/arm64
 BUILDER_NAME ?= ralphex-builder
@@ -24,6 +25,9 @@ build-python: setup-buildx
 	@for ver in $(PYTHON_VERSIONS); do \
 		echo "Building $(PYTHON_IMAGE):py$$ver [$(NATIVE_PLATFORM)]"; \
 		TAGS="-t $(PYTHON_IMAGE):py$$ver -t $(PYTHON_IMAGE):r$(RALPHEX_VERSION)-py$$ver"; \
+		if [ "$$ver" = "$(LATEST_PYTHON)" ]; then \
+			TAGS="$$TAGS -t $(PYTHON_IMAGE):latest"; \
+		fi; \
 		if [ -n "$(VERSION)" ]; then \
 			TAGS="$$TAGS -t $(PYTHON_IMAGE):$(VERSION)-r$(RALPHEX_VERSION)-py$$ver"; \
 		fi; \
@@ -44,6 +48,9 @@ build-one: setup-buildx
 	@if [ -z "$(PYTHON_VERSION)" ]; then echo "Error: PYTHON_VERSION is required, e.g. make build-one PYTHON_VERSION=3.13"; exit 1; fi
 	@echo "Building $(PYTHON_IMAGE):py$(PYTHON_VERSION) [$(NATIVE_PLATFORM)]"
 	@TAGS="-t $(PYTHON_IMAGE):py$(PYTHON_VERSION) -t $(PYTHON_IMAGE):r$(RALPHEX_VERSION)-py$(PYTHON_VERSION)"; \
+	if [ "$(PYTHON_VERSION)" = "$(LATEST_PYTHON)" ]; then \
+		TAGS="$$TAGS -t $(PYTHON_IMAGE):latest"; \
+	fi; \
 	if [ -n "$(VERSION)" ]; then \
 		TAGS="$$TAGS -t $(PYTHON_IMAGE):$(VERSION)-r$(RALPHEX_VERSION)-py$(PYTHON_VERSION)"; \
 	fi; \
@@ -80,6 +87,9 @@ push-python: setup-buildx
 	@for ver in $(PYTHON_VERSIONS); do \
 		echo "Building+pushing $(PYTHON_IMAGE):py$$ver [$(PLATFORMS)]"; \
 		TAGS="-t $(PYTHON_IMAGE):py$$ver -t $(PYTHON_IMAGE):r$(RALPHEX_VERSION)-py$$ver"; \
+		if [ "$$ver" = "$(LATEST_PYTHON)" ]; then \
+			TAGS="$$TAGS -t $(PYTHON_IMAGE):latest"; \
+		fi; \
 		if [ -n "$(VERSION)" ]; then \
 			TAGS="$$TAGS -t $(PYTHON_IMAGE):$(VERSION)-r$(RALPHEX_VERSION)-py$$ver"; \
 		fi; \
