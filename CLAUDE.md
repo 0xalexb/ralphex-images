@@ -42,7 +42,7 @@ There are no tests or linters in this repo. Verification is done by each Dockerf
 
 ## Tag Scheme
 
-**Python**: `<repo_ver>-r<ralphex_ver>-py<python_ver>` (e.g., `1.0.0-r0.5.2-py3.13`). Floating variants: `r<ralphex>-py<python>`, `py<python>`. No `latest` tag; highest floating is `py3.13`.
+**Python**: `<repo_ver>-r<ralphex_ver>-py<python_ver>` (e.g., `1.0.0-r0.5.2-py3.13`). Floating variants: `r<ralphex>-py<python>`, `py<python>`, `latest` (points to the highest Python version, currently 3.13).
 
 **Go**: `<repo_ver>-r<ralphex_go_ver>` (e.g., `1.0.0-r0.1.0`). Floating variants: `r<ralphex_go>`, `latest`.
 
