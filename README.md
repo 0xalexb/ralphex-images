@@ -4,12 +4,12 @@ Docker images extending the [ralphex](https://github.com/umputun/ralphex) family
 
 | Image | Registry | Base | Adds |
 |-------|----------|------|------|
-| **ralphex-python** | `ghcr.io/0xalexb/ralphex-python` | [umputun/ralphex](https://github.com/umputun/ralphex) | UV, ruff, Python 3.11/3.12/3.13 |
+| **ralphex-python** | `ghcr.io/0xalexb/ralphex-python` | [umputun/ralphex](https://github.com/umputun/ralphex) | jq, UV, ruff, Python 3.11/3.12/3.13 |
 | **ralphex-go** | `ghcr.io/0xalexb/ralphex-go` | [umputun/ralphex-go](https://github.com/umputun/ralphex-go) | jq |
 
 ## Python Image
 
-Extends ralphex with [UV](https://docs.astral.sh/uv/) (fast Python package manager) and [ruff](https://docs.astral.sh/ruff/) (linter/formatter). Each variant includes a specific Python version installed and managed via UV.
+Extends ralphex with [jq](https://jqlang.github.io/jq/) (JSON processor), [UV](https://docs.astral.sh/uv/) (fast Python package manager), and [ruff](https://docs.astral.sh/ruff/) (linter/formatter). Each variant includes a specific Python version installed and managed via UV.
 
 ### Tags
 
@@ -32,6 +32,7 @@ From the base image (`ghcr.io/umputun/ralphex`):
 - Claude Code, Codex
 
 Added by this image:
+- jq - JSON processor
 - UV (default: 0.10.6) - fast Python package manager
 - ruff (default: 0.15.3) - Python linter and formatter
 - Python version matching the image tag, installed and managed via UV
