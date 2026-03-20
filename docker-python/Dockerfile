@@ -14,6 +14,10 @@ ENV UV_TOOL_DIR=/home/app/.local/share/uv/tools
 ENV UV_PYTHON_INSTALL_DIR=/home/app/.local/share/uv/python
 ENV PATH="/home/app/.local/bin:${PATH}"
 
+# ensure uv/python env vars survive login shell PATH reset (su - app sources /etc/profile.d/)
+RUN printf 'export UV_LINK_MODE=copy\nexport UV_PYTHON=%s\nexport UV_TOOL_BIN_DIR=/home/app/.local/bin\nexport UV_TOOL_DIR=/home/app/.local/share/uv/tools\nexport UV_PYTHON_INSTALL_DIR=/home/app/.local/share/uv/python\nexport PATH="/home/app/.local/bin:${PATH}"\n' \
+    "${PYTHON_VERSION}" > /etc/profile.d/python-tools.sh
+
 # install uv (copied from official image, no remote script execution at build time)
 COPY --from=uv-source /uv /uvx /home/app/.local/bin/
 

@@ -13,6 +13,10 @@ ENV GOROOT=/usr/local/go
 ENV GOPATH=/home/app/go
 ENV PATH="${PATH}:${GOROOT}/bin:${GOPATH}/bin"
 
+# ensure go env vars survive login shell PATH reset (su - app sources /etc/profile.d/)
+RUN printf 'export GOROOT=/usr/local/go\nexport GOPATH=/home/app/go\nexport PATH="${PATH}:/usr/local/go/bin:/home/app/go/bin"\n' \
+    > /etc/profile.d/go-env.sh
+
 # install go dev tools (golangci-lint, moq, goimports)
 RUN wget -qO- https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b /usr/local/bin && \
     GOBIN=/usr/local/bin go install github.com/matryer/moq@latest && \
